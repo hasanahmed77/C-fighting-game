@@ -2,10 +2,26 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
-#define VELOCITY 4
+#define VELOCITY_CHARACTER 4
+#define VELOCITY_BULLET 15
+
+typedef struct
+{
+    SDL_Rect rect;
+    int health;
+} Character;
+
+typedef struct
+{
+    SDL_Rect rect;
+    int active;
+} Bullet;
+
+void checkBulletCollision(Bullet *bullet, Character *player);
 
 int main(int argc, char *argv[])
 {
@@ -13,6 +29,21 @@ int main(int argc, char *argv[])
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    // Initializing Text Rendering
+    if (TTF_Init() == -1)
+    {
+        printf("SDL_ttf initialization failed. SDL_ttf Error: %s\n", TTF_GetError());
+        return -1;
+    }
+
+    // Loading Fond
+    TTF_Font *font = TTF_OpenFont("./src/Fonts/VT323-Regular.ttf", 24);
+    if (!font)
+    {
+        printf("Font loading failed. SDL_ttf Error: %s\n", TTF_GetError());
         return -1;
     }
 
@@ -73,6 +104,28 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    // Loading stormtrooper's bullet
+    SDL_Texture *stormtrooperBulletTexture = IMG_LoadTexture(renderer, "./src/Assets/stormtrooper-blaster-2.png");
+    if (!stormtrooperBulletTexture)
+    {
+        printf("Unable to create stormtrooper BULLET. SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyTexture(stormtrooperTexture);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+
+    Bullet bullets[10];
+    int bulletIndex = 0;
+
+    for (int i = 0; i < 10; i++)
+    {
+        bullets[i].active = 0;
+        bullets[i].rect.x = -100;
+        bullets[i].rect.y = -100;
+    }
+
     // Loading boba fett image as texture
     SDL_Texture *bobaFettTexture = IMG_LoadTexture(renderer, "./src/Assets/boba-fett-2.png");
     if (!bobaFettTexture)
@@ -85,8 +138,8 @@ int main(int argc, char *argv[])
     }
 
     // Initializing characters
-    SDL_Rect stormtrooperRect = {100, 400, 40, 50};
-    SDL_Rect bobaFettRect = {800, 400, 30, 50};
+    Character stormtrooper = {{100, 400, 40, 50}, 10};
+    Character bobaFett = {{800, 400, 30, 50}, 10};
 
     // Main loop
     int running = 1;
@@ -106,46 +159,76 @@ int main(int argc, char *argv[])
         // INPUT & BOUNDARIES
         // Stormtrooper
         // UP boundary
-        if (keyState[SDL_SCANCODE_W] && stormtrooperRect.y > 0)
+        if (keyState[SDL_SCANCODE_W] && stormtrooper.rect.y > 0)
         {
-            stormtrooperRect.y -= VELOCITY;
+            stormtrooper.rect.y -= VELOCITY_CHARACTER;
         }
         // DOWN boundary
-        if (keyState[SDL_SCANCODE_S] && stormtrooperRect.y < WINDOW_HEIGHT - stormtrooperRect.h)
+        if (keyState[SDL_SCANCODE_S] && stormtrooper.rect.y < WINDOW_HEIGHT - stormtrooper.rect.h)
         {
-            stormtrooperRect.y += VELOCITY;
+            stormtrooper.rect.y += VELOCITY_CHARACTER;
         }
         // LEFT Boundary
-        if (keyState[SDL_SCANCODE_A] && stormtrooperRect.x > 0)
+        if (keyState[SDL_SCANCODE_A] && stormtrooper.rect.x > 0)
         {
-            stormtrooperRect.x -= VELOCITY;
+            stormtrooper.rect.x -= VELOCITY_CHARACTER;
         }
         // RIGHT Boundary
-        if (keyState[SDL_SCANCODE_D] && stormtrooperRect.x < WINDOW_WIDTH / 2 - stormtrooperRect.w)
+        if (keyState[SDL_SCANCODE_D] && stormtrooper.rect.x < WINDOW_WIDTH / 2 - stormtrooper.rect.w)
         {
-            stormtrooperRect.x += VELOCITY;
+            stormtrooper.rect.x += VELOCITY_CHARACTER;
         }
 
         // Boba Fett
         // UP boundary
-        if (keyState[SDL_SCANCODE_UP] && bobaFettRect.y > 0)
+        if (keyState[SDL_SCANCODE_UP] && bobaFett.rect.y > 0)
         {
-            bobaFettRect.y -= VELOCITY;
+            bobaFett.rect.y -= VELOCITY_CHARACTER;
         }
         // DOWN boundary
-        if (keyState[SDL_SCANCODE_DOWN] && bobaFettRect.y < WINDOW_HEIGHT - bobaFettRect.h)
+        if (keyState[SDL_SCANCODE_DOWN] && bobaFett.rect.y < WINDOW_HEIGHT - bobaFett.rect.h)
         {
-            bobaFettRect.y += VELOCITY;
+            bobaFett.rect.y += VELOCITY_CHARACTER;
         }
         // LEFT Boundary
-        if (keyState[SDL_SCANCODE_LEFT] && bobaFettRect.x > WINDOW_WIDTH / 2 + bobaFettRect.w)
+        if (keyState[SDL_SCANCODE_LEFT] && bobaFett.rect.x > WINDOW_WIDTH / 2 + bobaFett.rect.w)
         {
-            bobaFettRect.x -= VELOCITY;
+            bobaFett.rect.x -= VELOCITY_CHARACTER;
         }
         // RIGHT Boundary
-        if (keyState[SDL_SCANCODE_RIGHT] && bobaFettRect.x < WINDOW_WIDTH - bobaFettRect.w)
+        if (keyState[SDL_SCANCODE_RIGHT] && bobaFett.rect.x < WINDOW_WIDTH - bobaFett.rect.w)
         {
-            bobaFettRect.x += VELOCITY;
+            bobaFett.rect.x += VELOCITY_CHARACTER;
+        }
+
+        // Firing stormtrooper bullets
+        if (keyState[SDL_SCANCODE_SPACE])
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                if (!bullets[bulletIndex].active)
+                {
+                    bullets[i].rect.x = stormtrooper.rect.x + stormtrooper.rect.w;
+                    bullets[i].rect.y = stormtrooper.rect.y + stormtrooper.rect.h / 2 - 5;
+                    bullets[i].rect.w = 40;
+                    bullets[i].rect.h = 10;
+                    bullets[i].active = 1;
+                }
+            }
+        }
+
+        // Moving the active bullets
+        for (int i = 0; i < 10; i++)
+        {
+            if (bullets[i].active)
+            {
+                bullets[i].rect.x += VELOCITY_BULLET;
+
+                checkBulletCollision(&bullets[i], &bobaFett);
+
+                if (bullets[i].rect.x > WINDOW_WIDTH)
+                    bullets[i].active = 0;
+            }
         }
 
         // Rendering a black screen
@@ -155,8 +238,41 @@ int main(int argc, char *argv[])
         // Rendering the background image
         SDL_RenderCopy(renderer, backgroundTexture, NULL, NULL);
 
-        SDL_RenderCopy(renderer, stormtrooperTexture, NULL, &stormtrooperRect);
-        SDL_RenderCopy(renderer, bobaFettTexture, NULL, &bobaFettRect);
+        SDL_RenderCopy(renderer, stormtrooperTexture, NULL, &stormtrooper.rect);
+        SDL_RenderCopy(renderer, bobaFettTexture, NULL, &bobaFett.rect);
+
+        for (int i = 0; i < 10; i++)
+        {
+            if (bullets[i].active)
+            {
+                SDL_RenderCopy(renderer, stormtrooperBulletTexture, NULL, &bullets[i].rect);
+            }
+        }
+
+        // Displaying Health
+        char healthText[50];
+        sprintf(healthText, "Health: %d", bobaFett.health);
+
+        SDL_Color white = {255, 255, 255, 255};
+        SDL_Surface *textSurface = TTF_RenderText_Solid(font, healthText, white);
+        if (!textSurface)
+        {
+            printf("Text surface creation failed! SDL_ttf Error: %s\n", TTF_GetError());
+        }
+
+        SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+        SDL_FreeSurface(textSurface);
+
+        if (!textTexture)
+        {
+            printf("Text texture creation failed! SDL_ttf Error: %s\n", TTF_GetError());
+        }
+
+        SDL_Rect textRect = {10, 10, 0, 0};
+
+        SDL_QueryTexture(textTexture, NULL, NULL, &textRect.w, &textRect.h);
+
+        SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
 
         // Updating the screen
         SDL_RenderPresent(renderer);
@@ -171,4 +287,14 @@ int main(int argc, char *argv[])
     SDL_Quit();
 
     return 0;
+}
+
+void checkBulletCollision(Bullet *bullet, Character *player)
+{
+    if (bullet->active && SDL_HasIntersection(&bullet->rect, &player->rect))
+    {
+        player->health -= 1;
+
+        bullet->active = 0;
+    }
 }
