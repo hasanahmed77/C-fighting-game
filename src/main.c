@@ -6,8 +6,8 @@
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
-#define VELOCITY_CHARACTER 4
-#define VELOCITY_BULLET 12
+#define VELOCITY_CHARACTER 7
+#define VELOCITY_BULLET 20
 
 typedef struct
 {
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
                 bobaFett.rect.y += VELOCITY_CHARACTER;
             }
             // LEFT Boundary
-            if (keyState[SDL_SCANCODE_LEFT] && bobaFett.rect.x > WINDOW_WIDTH / 2 + bobaFett.rect.w)
+            if (keyState[SDL_SCANCODE_LEFT] && bobaFett.rect.x > WINDOW_WIDTH / 2)
             {
                 bobaFett.rect.x -= VELOCITY_CHARACTER;
             }
@@ -285,6 +285,7 @@ int main(int argc, char *argv[])
                         bobaFettbullets[i].rect.w = 40;
                         bobaFettbullets[i].rect.h = 10;
                         bobaFettbullets[i].active = 1;
+                        break;
                     }
                 }
             }
@@ -484,10 +485,8 @@ void displayStartMessage()
 void renderEndMessage(const char *winner)
 {
     SDL_Color white = {255, 255, 255, 255};
-    const char *restartMessage = "Press any key to play again!";
     // Rendering game over message
-    renderStartMessage(winner, 2, 3);
-    renderStartMessage(restartMessage, 2, 2);
+    renderStartMessage(winner, 2, 2);
 
     SDL_RenderPresent(renderer);
 }
@@ -498,12 +497,16 @@ void checkGameOver()
     {
         // Stormtrooper wins
         renderEndMessage("Stormtrooper Wins!");
-        waitForKeyPressToRestart();
+        // waitForKeyPressToRestart();
+        SDL_Delay(1200);
+        restartGame();
     }
     else if (stormtrooper.health <= 0)
     {
         renderEndMessage("Boba Fett Wins!");
-        waitForKeyPressToRestart();
+        // waitForKeyPressToRestart();
+        SDL_Delay(1200);
+        restartGame();
     }
 }
 
@@ -521,12 +524,9 @@ void waitForKeyPressToRestart()
                 gameRunning = 0;
                 gameRestarted = 1;
             }
-            else if (event.type == SDL_KEYDOWN)
-            {
-                SDL_Delay(1500);
-                restartGame();
-                gameRestarted = 1;
-            }
+            SDL_Delay(1300);
+            restartGame();
+            gameRestarted = 1;
         }
 
         SDL_Delay(10);
