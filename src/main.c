@@ -3,6 +3,7 @@
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_mixer.h>
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
@@ -26,6 +27,7 @@ SDL_Window *window;
 TTF_Font *font;
 SDL_Texture *backgroundTexture;
 TTF_Font *startFont;
+Mix_Music *hitSound;
 int gameRunning = 1;
 int gameStarted = 0;
 
@@ -43,7 +45,7 @@ void restartGame();
 int main(int argc, char *argv[])
 {
     // Initializing SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
     {
         printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return -1;
@@ -56,7 +58,41 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // Loading Fond
+    // Initializing SDL_Mixer
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0)
+    {
+        printf("SDL_mixer could not be initialized. SDL_Error: %s\n", SDL_GetError());
+    }
+
+    // Loading Sounds
+    Mix_Music *stormtrooperBulletSound = Mix_LoadMUS("./src//Assets/stormtrooper-blaster.mp3");
+    if (!stormtrooperBulletSound)
+    {
+        printf("Failed to laod stormtrooper's bullet sound. Error: %s\n", Mix_GetError());
+        Mix_CloseAudio();
+        SDL_Quit();
+        return -1;
+    }
+
+    Mix_Music *bobaFettBulletSound = Mix_LoadMUS("./src/Assets/boba-fett-blaster.mp3");
+    if (!bobaFettBulletSound)
+    {
+        printf("Failed to laod boba fett's bullet sound. Error: %s\n", Mix_GetError());
+        Mix_CloseAudio();
+        SDL_Quit();
+        return -1;
+    }
+
+    hitSound = Mix_LoadMUS("./src/Assets/Gun+Silencer.mp3");
+    if (!hitSound)
+    {
+        printf("Failed to laod HIT bullet sound. Error: %s\n", Mix_GetError());
+        Mix_CloseAudio();
+        SDL_Quit();
+        return -1;
+    }
+
+    // Loading Font
     font = TTF_OpenFont("./src/Fonts/VT323-Regular.ttf", 24);
     if (!font)
     {
@@ -254,6 +290,10 @@ int main(int argc, char *argv[])
                         bullets[i].rect.w = 40;
                         bullets[i].rect.h = 10;
                         bullets[i].active = 1;
+
+                        if (Mix_PlayMusic(stormtrooperBulletSound, 1) == -1)
+                            printf("Error playing stormtrooper's bullet sound");
+
                         break;
                     }
                 }
@@ -285,6 +325,10 @@ int main(int argc, char *argv[])
                         bobaFettbullets[i].rect.w = 40;
                         bobaFettbullets[i].rect.h = 10;
                         bobaFettbullets[i].active = 1;
+
+                        if (Mix_PlayMusic(bobaFettBulletSound, 1) == -1)
+                            printf("Error playing boba fett's bullet sound");
+
                         break;
                     }
                 }
@@ -406,6 +450,9 @@ void checkBulletCollision(Bullet *bullet, Character *player)
 {
     if (bullet->active && SDL_HasIntersection(&bullet->rect, &player->rect))
     {
+        if (Mix_PlayMusic(hitSound, 1) == -1)
+            printf("Error playing HIT bullet sound");
+
         player->health -= 1;
 
         bullet->active = 0;
